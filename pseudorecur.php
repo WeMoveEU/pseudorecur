@@ -136,6 +136,15 @@ function pseudorecur_civicrm_postProcess($formName, &$form) {
       $container = &$form->controller->container();
       $container['values']['Main']['frequency_unit'] = $newUnit;
       $form->set('amount', $newAmount);
+
+      $lineItems = $form->get('lineItem');
+      foreach ($lineItems as $id => &$values) {
+        foreach ($values as &$lineItem) {
+          $lineItem['unit_price'] = $lineItem['unit_price'] * $multiplier;
+          $lineItem['line_total'] = $lineItem['line_total'] * $multiplier;
+        }
+      }
+      $form->set('lineItem', $lineItems);
     }
   }
 }
