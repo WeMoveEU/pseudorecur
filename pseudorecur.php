@@ -122,6 +122,10 @@ function pseudorecur_civicrm_alterSettingsFolders(&$metaDataFolders = NULL) {
   _pseudorecur_civix_civicrm_alterSettingsFolders($metaDataFolders);
 }
 
+function _pseudorecur_note($unit, $amount, $currency) {
+  return "This is a pseudo-${unit}ly donation of $amount $currency per $unit.";
+}
+
 function _pseudorecur_multiply_lineItems(&$lineItems, $multiplier) {
   if (isset($lineItems)) {
     foreach ($lineItems as $id => &$values) {
@@ -141,15 +145,19 @@ function pseudorecur_civicrm_postProcess($formName, &$form) {
   if (is_a($form, 'CRM_Contribute_Form_Contribution_Main')) {
     $unit = CRM_Utils_Array::value('frequency_unit', $form->_params);
     if ($unit == 'week') {
+      $currency = CRM_Utils_Array::value('currencyID', $form->_params);
+      $amount = $form->get("amount");
+      $note = _pseudorecur_note($unit, $amount, $currency);
       $multiplier = 4.3;
       $newUnit = 'month';
-      $newAmount = $form->get("amount") * $multiplier;
+      $newAmount = $amount * $multiplier;
 
       //The confirm form will read most values from the previously submitted values
       //except a few ones like total amount and line items, which were computed
       //by the main form
       $container = &$form->controller->container();
       $container['values']['Main']['frequency_unit'] = $newUnit;
+      $container['values']['Main']['contribution_note'] = $note;
       $form->set('amount', $newAmount);
       $lineItems = $form->get('lineItem');
       _pseudorecur_multiply_lineItems($lineItems, $multiplier);
@@ -166,12 +174,16 @@ function pseudorecur_civicrm_preProcess($formName, &$form) {
   if (is_a($form, 'CRM_Contribute_Form_Contribution_Confirm')) {
     $unit = CRM_Utils_Array::value('frequency_unit', $form->_params);
     if ($unit == 'week') {
+      $currency = CRM_Utils_Array::value('currencyID', $form->_params);
+      $amount = $form->get("amount");
+      $note = _pseudorecur_note($unit, $amount, $currency);
       $multiplier = 4.3;
       $newUnit = 'month';
-      $newAmount = $form->get("amount") * $multiplier;
+      $newAmount = $amount * $multiplier;
 
       $form->_params['frequency_unit'] = $newUnit;
       $form->_params['amount'] = $newAmount;
+      $form->_params['contribution_note'] = $note;
       $lineItems = $form->get('lineItem');
       _pseudorecur_multiply_lineItems($lineItems, $multiplier);
       $form->set('lineItem', $lineItems);
