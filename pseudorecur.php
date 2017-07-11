@@ -189,6 +189,17 @@ function pseudorecur_civicrm_preProcess($formName, &$form) {
       $form->set('lineItem', $lineItems);
     }
   }
+  else if (is_a($form, 'CRM_Contribute_Form_Contribution_Main')) {
+    //Check wether we are returning to the page after an error
+    //We then need to reset the unit to week
+    if (isset($form->_submitValues)) {
+      $newUnit = CRM_Utils_Array::value('frequency_unit', $form->_submitValues);
+      $unit = CRM_Utils_Array::value('recur_frequency_unit', $form->_values);
+      if ($unit == 'week' && $newUnit == 'month') {
+        $form->_submitValues['frequency_unit'] = $unit;
+      }
+    }
+  }
 }
 
 /**
