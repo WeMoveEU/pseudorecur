@@ -122,8 +122,20 @@ function pseudorecur_civicrm_alterSettingsFolders(&$metaDataFolders = NULL) {
   _pseudorecur_civix_civicrm_alterSettingsFolders($metaDataFolders);
 }
 
+function _pseudorecur_multiply_lineItems(&$lineItems, $multiplier) {
+  if (isset($lineItems)) {
+    foreach ($lineItems as $id => &$values) {
+      foreach ($values as &$lineItem) {
+        $lineItem['unit_price'] = $lineItem['unit_price'] * $multiplier;
+        $lineItem['line_total'] = $lineItem['line_total'] * $multiplier;
+      }
+    }
+  }
+}
+
 /**
  * Converts weekly donations into monthly donations
+ * This is not called for PayPal
  */
 function pseudorecur_civicrm_postProcess($formName, &$form) {
   if (is_a($form, 'CRM_Contribute_Form_Contribution_Main')) {
@@ -133,18 +145,59 @@ function pseudorecur_civicrm_postProcess($formName, &$form) {
       $newUnit = 'month';
       $newAmount = $form->get("amount") * $multiplier;
 
+      //The confirm form will read most values from the previously submitted values
+      //except a few ones like total amount and line items, which were computed
+      //by the main form
       $container = &$form->controller->container();
       $container['values']['Main']['frequency_unit'] = $newUnit;
       $form->set('amount', $newAmount);
-
       $lineItems = $form->get('lineItem');
-      foreach ($lineItems as $id => &$values) {
-        foreach ($values as &$lineItem) {
-          $lineItem['unit_price'] = $lineItem['unit_price'] * $multiplier;
-          $lineItem['line_total'] = $lineItem['line_total'] * $multiplier;
-        }
-      }
+      _pseudorecur_multiply_lineItems($lineItems, $multiplier);
       $form->set('lineItem', $lineItems);
+    }
+  }
+}
+
+/**
+ * Similar to postProcess of Main form but for PayPal use case, 
+ * when coming back from PayPal website
+ */
+function pseudorecur_civicrm_preProcess($formName, &$form) {
+  if (is_a($form, 'CRM_Contribute_Form_Contribution_Confirm')) {
+    $unit = CRM_Utils_Array::value('frequency_unit', $form->_params);
+    if ($unit == 'week') {
+      $multiplier = 4.3;
+      $newUnit = 'month';
+      $newAmount = $form->get("amount") * $multiplier;
+
+      $form->_params['frequency_unit'] = $newUnit;
+      $form->_params['amount'] = $newAmount;
+      $lineItems = $form->get('lineItem');
+      _pseudorecur_multiply_lineItems($lineItems, $multiplier);
+      $form->set('lineItem', $lineItems);
+    }
+  }
+}
+
+/**
+ * Alters weekly donations before calling PayPay express API
+ */
+function pseudorecur_civicrm_alterPaymentProcessorParams($paymentObj, &$rawParams, &$cookedParams) {
+  if (is_a($paymentObj, 'CRM_Core_Payment_PayPalImpl')) {
+    $unit = CRM_Utils_Array::value('frequency_unit', $rawParams);
+    if ($unit == 'week') {
+      $multiplier = 4.3;
+      $newUnit = 'month';
+      $newAmount = $rawParams['amount'] * $multiplier;
+
+      $rawParams['frequency_unit'] = $newUnit;
+      $rawParams['amount'] = $newAmount;
+      $rawParams['separate_amount'] = $newAmount;
+      CRM_Core_Error::debug_var("raw", $rawParams);
+
+      $cookedParams['amt'] = $newAmount;
+      $cookedParams['L_BILLINGAGREEMENTDESCRIPTION0'] = "$newAmount Per 1 $newUnit";
+      CRM_Core_Error::debug_var("cooked", $cookedParams);
     }
   }
 }
